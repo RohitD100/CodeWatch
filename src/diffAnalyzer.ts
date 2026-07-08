@@ -1,6 +1,5 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { logInfo } from './logger';
 
 export async function getChangedFiles(): Promise<string[]> {
   const context = github.context;
