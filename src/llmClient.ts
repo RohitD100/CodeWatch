@@ -77,16 +77,17 @@ class NvidiaProvider implements LLMProvider {
 // Placeholder for other providers – they can be implemented similarly.
 
 export function createLLMProvider(): LLMProvider {
-  const provider = core.getInput('llm_provider');
+  // Retrieve provider name from action input or environment variable
+  const provider = core.getInput('llm_provider') || process.env.LLM_PROVIDER;
   if (!provider) {
     throw new Error('LLM_PROVIDER not set');
   }
-  const apiKey = core.getInput("nvidia_api_key"); 
-  if (!provider) {
-    logError('LLM_PROVIDER environment variable not set');
-    throw new Error('LLM_PROVIDER not set');
-  }
+  // Retrieve API keys with appropriate fallback
+  const openaiKey = core.getInput('openai_api_key') || process.env.OPENAI_API_KEY;
+  const nvidiaKey = core.getInput('nvidia_api_key') || process.env.NVIDIA_API_KEY;
+
   if (provider === 'openai') {
+    const apiKey = openaiKey;
     if (!apiKey) {
       logError('OPENAI_API_KEY not set');
       throw new Error('OPENAI_API_KEY not set');
@@ -94,16 +95,17 @@ export function createLLMProvider(): LLMProvider {
     const model = core.getInput('model') ?? 'gpt-4o';
     return new OpenAIProvider(apiKey, model);
   }
+
   if (provider === 'nvidia') {
-    const nvidiaKey = core.getInput('nvidia_api_key');
-    if (!nvidiaKey) {
+    const apiKey = nvidiaKey;
+    if (!apiKey) {
       logError('NVIDIA_API_KEY not set');
       throw new Error('NVIDIA_API_KEY not set');
     }
-    const model =
-      core.getInput('nvidia_model') ?? 'meta/llama-3.3-70b-instruct';
-    return new NvidiaProvider(nvidiaKey, model);
+    const model = core.getInput('nvidia_model') ?? 'meta/llama-3.3-70b-instruct';
+    return new NvidiaProvider(apiKey, model);
   }
+
   // Future: add Anthropic, Gemini, Azure, OpenRouter
   logError(`LLM provider ${provider} not implemented`);
   throw new Error(`LLM provider ${provider} not implemented`);

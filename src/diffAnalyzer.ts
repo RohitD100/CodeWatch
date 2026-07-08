@@ -3,7 +3,7 @@ import * as github from '@actions/github';
 
 export async function getChangedFiles(): Promise<string[]> {
   const context = github.context;
-  const token = core.getInput('github_token');
+  const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN not set');
   const octokit = github.getOctokit(token);
   const { owner, repo } = context.repo;
@@ -21,7 +21,7 @@ export async function getChangedFiles(): Promise<string[]> {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getFileDiff(_path: string): Promise<string> {
   const context = github.context;
-  const token = core.getInput('github_token');
+  const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN not set');
   const octokit = github.getOctokit(token as string);
   const { owner, repo } = context.repo;
