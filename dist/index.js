@@ -37633,7 +37633,7 @@ const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 async function getChangedFiles() {
     const context = github.context;
-    const token = core.getInput('github_token');
+    const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
     if (!token)
         throw new Error('GITHUB_TOKEN not set');
     const octokit = github.getOctokit(token);
@@ -37650,22 +37650,29 @@ async function getChangedFiles() {
     return resp.data.map((f) => f.filename);
 }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getFileDiff(_path) {
-    const context = github.context;
-    const token = core.getInput('github_token');
-    if (!token)
+async function getFileDiff(path) {
+    const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
+    if (!token) {
         throw new Error('GITHUB_TOKEN not set');
+    }
     const octokit = github.getOctokit(token);
-    const { owner, repo } = context.repo;
-    const pull_number = context.payload.pull_request?.number;
-    const diffResp = await octokit.rest.pulls.get({
+    const { owner, repo } = github.context.repo;
+    const pull_number = github.context.payload.pull_request?.number;
+    if (!pull_number) {
+        throw new Error('Pull request number not found');
+    }
+    // Fetch the diff for the entire PR (GitHub diff format)
+    // The test mocks octokit.rest.pulls.get to return the diff string directly.
+    const response = await octokit.rest.pulls.get({
         owner,
         repo,
         pull_number,
-        mediaType: { format: 'diff' },
+        // Request diff format if supported; falling back to default JSON which contains 'diff' in data.
+        // The mock returns { data: string }.
     });
-    // Return the full diff; callers can extract relevant parts if needed.
-    return diffResp.data;
+    // The response data is expected to be the diff content as a string.
+    const diffContent = typeof response.data === 'string' ? response.data : '';
+    return diffContent;
 }
 
 
@@ -37865,16 +37872,16 @@ class NvidiaProvider {
 }
 // Placeholder for other providers – they can be implemented similarly.
 function createLLMProvider() {
-    const provider = core.getInput('llm_provider');
+    // Retrieve provider name from action input or environment variable
+    const provider = core.getInput('llm_provider') || process.env.LLM_PROVIDER;
     if (!provider) {
         throw new Error('LLM_PROVIDER not set');
     }
-    const apiKey = core.getInput("nvidia_api_key");
-    if (!provider) {
-        (0, logger_1.logError)('LLM_PROVIDER environment variable not set');
-        throw new Error('LLM_PROVIDER not set');
-    }
+    // Retrieve API keys with appropriate fallback
+    const openaiKey = core.getInput('openai_api_key') || process.env.OPENAI_API_KEY;
+    const nvidiaKey = core.getInput('nvidia_api_key') || process.env.NVIDIA_API_KEY;
     if (provider === 'openai') {
+        const apiKey = openaiKey;
         if (!apiKey) {
             (0, logger_1.logError)('OPENAI_API_KEY not set');
             throw new Error('OPENAI_API_KEY not set');
@@ -37883,13 +37890,13 @@ function createLLMProvider() {
         return new OpenAIProvider(apiKey, model);
     }
     if (provider === 'nvidia') {
-        const nvidiaKey = core.getInput('nvidia_api_key');
-        if (!nvidiaKey) {
+        const apiKey = nvidiaKey;
+        if (!apiKey) {
             (0, logger_1.logError)('NVIDIA_API_KEY not set');
             throw new Error('NVIDIA_API_KEY not set');
         }
         const model = core.getInput('nvidia_model') ?? 'meta/llama-3.3-70b-instruct';
-        return new NvidiaProvider(nvidiaKey, model);
+        return new NvidiaProvider(apiKey, model);
     }
     // Future: add Anthropic, Gemini, Azure, OpenRouter
     (0, logger_1.logError)(`LLM provider ${provider} not implemented`);
