@@ -1,0 +1,25 @@
+name: 'CodeWatch'
+description: 'AI-powered pull request review action using configurable LLM providers.'
+author: 'Rohit Dorage'
+branding:
+  icon: 'eye'
+  color: 'blue'
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+    default: '${{ github.token }}'
+  llm_provider:
+    description: 'LLM provider name (openai, anthropic, gemini, azure, openrouter)'
+    required: true
+    default: 'openai'
+  openai_api_key:
+    description: 'OpenAI API key when using OpenAI provider'
+    required: false
+  openai_model:
+    description: 'OpenAI model to use'
+    required: false
+    default: 'gpt-4o'
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

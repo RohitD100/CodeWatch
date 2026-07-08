@@ -1,0 +1,30 @@
+{
+  "name": "codewatch",
+  "version": "1.0.0",
+  "description": "GitHub Action for AI-powered pull request reviews using multiple LLM providers.",
+  "main": "dist/index.js",
+  "author": "",
+  "license": "",
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.1",
+    "@vercel/ncc": "^0.38.1",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.49.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2",
+    "vitest": "^1.0.0"
+  }
+}
