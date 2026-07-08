@@ -8,7 +8,7 @@ import { ReviewComment } from './types';
 
 async function run() {
   try {
-    const token = process.env.GITHUB_TOKEN;
+    const token = core.getInput("github_token");
     if (!token) throw new Error('GITHUB_TOKEN not set');
     const octokit = github.getOctokit(token);
     const provider = createLLMProvider();
