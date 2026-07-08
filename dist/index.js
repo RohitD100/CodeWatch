@@ -37705,7 +37705,7 @@ const reviewGenerator_1 = __nccwpck_require__(3086);
 const logger_1 = __nccwpck_require__(6999);
 async function run() {
     try {
-        const token = process.env.GITHUB_TOKEN;
+        const token = core.getInput("github_token");
         if (!token)
             throw new Error('GITHUB_TOKEN not set');
         const octokit = github.getOctokit(token);
@@ -37786,6 +37786,36 @@ class OpenAIProvider {
         }
     }
 }
+// NVIDIA provider using integrate API
+class NvidiaProvider {
+    constructor(apiKey, model = 'meta/llama-3.3-70b-instruct') {
+        this.name = 'nvidia';
+        this.baseURL = 'https://integrate.api.nvidia.com/v1';
+        this.apiKey = apiKey;
+        this.model = model;
+    }
+    async sendPrompt(prompt, model) {
+        const payload = {
+            model: model ?? this.model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+            top_p: 0.7,
+            max_tokens: 1024,
+            stream: false
+        };
+        try {
+            const resp = await axios_1.default.post(`${this.baseURL}/chat/completions`, payload, {
+                headers: { Authorization: `Bearer ${this.apiKey}` }
+            });
+            return resp.data.choices?.[0]?.message?.content ?? '';
+        }
+        catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            (0, logger_1.logError)(`NVIDIA request failed: ${message}`);
+            throw err;
+        }
+    }
+}
 // Placeholder for other providers – they can be implemented similarly.
 function createLLMProvider() {
     const provider = process.env.LLM_PROVIDER?.toLowerCase();
@@ -37801,6 +37831,15 @@ function createLLMProvider() {
         }
         const model = process.env.OPENAI_MODEL ?? 'gpt-4o';
         return new OpenAIProvider(apiKey, model);
+    }
+    if (provider === 'nvidia') {
+        const nvidiaKey = process.env.NVIDIA_API_KEY;
+        if (!nvidiaKey) {
+            (0, logger_1.logError)('NVIDIA_API_KEY not set');
+            throw new Error('NVIDIA_API_KEY not set');
+        }
+        const model = process.env.NVIDIA_MODEL ?? 'meta/llama-3.3-70b-instruct';
+        return new NvidiaProvider(nvidiaKey, model);
     }
     // Future: add Anthropic, Gemini, Azure, OpenRouter
     (0, logger_1.logError)(`LLM provider ${provider} not implemented`);
