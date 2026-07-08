@@ -37629,10 +37629,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getChangedFiles = getChangedFiles;
 exports.getFileDiff = getFileDiff;
+const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 async function getChangedFiles() {
     const context = github.context;
-    const token = process.env.GITHUB_TOKEN;
+    const token = core.getInput('github_token');
     if (!token)
         throw new Error('GITHUB_TOKEN not set');
     const octokit = github.getOctokit(token);
@@ -37640,17 +37641,29 @@ async function getChangedFiles() {
     const pull_number = context.payload.pull_request?.number;
     if (!pull_number)
         throw new Error('Not a pull request event');
-    const resp = await octokit.rest.pulls.listFiles({ owner, repo, pull_number, per_page: 100 });
-    return resp.data.map(f => f.filename);
+    const resp = await octokit.rest.pulls.listFiles({
+        owner,
+        repo,
+        pull_number,
+        per_page: 100,
+    });
+    return resp.data.map((f) => f.filename);
 }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getFileDiff(_path) {
     const context = github.context;
-    const token = process.env.GITHUB_TOKEN;
+    const token = core.getInput('github_token');
+    if (!token)
+        throw new Error('GITHUB_TOKEN not set');
     const octokit = github.getOctokit(token);
     const { owner, repo } = context.repo;
     const pull_number = context.payload.pull_request?.number;
-    const diffResp = await octokit.rest.pulls.get({ owner, repo, pull_number, mediaType: { format: 'diff' } });
+    const diffResp = await octokit.rest.pulls.get({
+        owner,
+        repo,
+        pull_number,
+        mediaType: { format: 'diff' },
+    });
     // Return the full diff; callers can extract relevant parts if needed.
     return diffResp.data;
 }
@@ -37754,11 +37767,45 @@ run();
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createLLMProvider = createLLMProvider;
+const core = __importStar(__nccwpck_require__(7484));
 const axios_1 = __importDefault(__nccwpck_require__(7269));
 const logger_1 = __nccwpck_require__(6999);
 class OpenAIProvider {
@@ -37771,11 +37818,11 @@ class OpenAIProvider {
         const payload = {
             model: model ?? this.model,
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.2
+            temperature: 0.2,
         };
         try {
             const resp = await axios_1.default.post('https://api.openai.com/v1/chat/completions', payload, {
-                headers: { Authorization: `Bearer ${this.apiKey}` }
+                headers: { Authorization: `Bearer ${this.apiKey}` },
             });
             return resp.data.choices?.[0]?.message?.content ?? '';
         }
@@ -37801,11 +37848,11 @@ class NvidiaProvider {
             temperature: 0.2,
             top_p: 0.7,
             max_tokens: 1024,
-            stream: false
+            stream: false,
         };
         try {
             const resp = await axios_1.default.post(`${this.baseURL}/chat/completions`, payload, {
-                headers: { Authorization: `Bearer ${this.apiKey}` }
+                headers: { Authorization: `Bearer ${this.apiKey}` },
             });
             return resp.data.choices?.[0]?.message?.content ?? '';
         }
@@ -37818,8 +37865,11 @@ class NvidiaProvider {
 }
 // Placeholder for other providers – they can be implemented similarly.
 function createLLMProvider() {
-    const provider = process.env.LLM_PROVIDER?.toLowerCase();
-    const apiKey = process.env.OPENAI_API_KEY; // default for OpenAI
+    const provider = core.getInput('llm_provider');
+    if (!provider) {
+        throw new Error('LLM_PROVIDER not set');
+    }
+    const apiKey = core.getInput("nvidia_api_key");
     if (!provider) {
         (0, logger_1.logError)('LLM_PROVIDER environment variable not set');
         throw new Error('LLM_PROVIDER not set');
@@ -37829,16 +37879,16 @@ function createLLMProvider() {
             (0, logger_1.logError)('OPENAI_API_KEY not set');
             throw new Error('OPENAI_API_KEY not set');
         }
-        const model = process.env.OPENAI_MODEL ?? 'gpt-4o';
+        const model = core.getInput('model') ?? 'gpt-4o';
         return new OpenAIProvider(apiKey, model);
     }
     if (provider === 'nvidia') {
-        const nvidiaKey = process.env.NVIDIA_API_KEY;
+        const nvidiaKey = core.getInput('nvidia_api_key');
         if (!nvidiaKey) {
             (0, logger_1.logError)('NVIDIA_API_KEY not set');
             throw new Error('NVIDIA_API_KEY not set');
         }
-        const model = process.env.NVIDIA_MODEL ?? 'meta/llama-3.3-70b-instruct';
+        const model = core.getInput('nvidia_model') ?? 'meta/llama-3.3-70b-instruct';
         return new NvidiaProvider(nvidiaKey, model);
     }
     // Future: add Anthropic, Gemini, Azure, OpenRouter
