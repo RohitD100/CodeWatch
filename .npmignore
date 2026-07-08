@@ -1,0 +1,6 @@
+src/**
+*.test.ts
+*.md
+.github/**
+.git/**
+node_modules/**
