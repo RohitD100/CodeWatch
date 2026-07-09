@@ -63,6 +63,7 @@ class NvidiaProvider implements LLMProvider {
         payload,
         {
           headers: { Authorization: `Bearer ${this.apiKey}` },
+          timeout: 300000, // 5 minutes
         },
       );
       return resp.data.choices?.[0]?.message?.content ?? '';
