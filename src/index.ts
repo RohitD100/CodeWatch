@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { createLLMProvider } from './llmClient';
-import { getChangedFiles, getFileDiff } from './diffAnalyzer';
+import { getChangedFiles, getChangedFilesWithPatch, getFileDiff } from './diffAnalyzer';
 import { generateReviewComments } from './reviewGenerator';
 import { logInfo, logError, logWarning } from './logger';
 import { ReviewComment } from './types';
@@ -13,17 +13,16 @@ async function run() {
     const octokit = github.getOctokit(token);
     const provider = createLLMProvider();
 
-    const files = await getChangedFiles();
-    logInfo(`Changed files: ${files.join(', ')}`);
+    const changedFiles = await getChangedFilesWithPatch();
+    logInfo(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
     const comments: ReviewComment[] = [];
 
-    for (const file of files) {
-      const diff = await getFileDiff(file);
-      if (!diff) {
-        logWarning(`No diff found for ${file}`);
+    for (const { filename, patch } of changedFiles) {
+      if (!patch) {
+        logWarning(`No diff found for ${filename}`);
         continue;
       }
-      const fileComments = await generateReviewComments(provider, diff, file);
+      const fileComments = await generateReviewComments(provider, patch, filename);
       comments.push(...fileComments);
     }
 
