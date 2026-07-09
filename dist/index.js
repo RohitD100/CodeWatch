@@ -37651,21 +37651,22 @@ async function getChangedFiles() {
 }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getFileDiff(path) {
-    const token = core.getInput("github_token");
+    const token = core.getInput("github_token") || process.env.GITHUB_TOKEN;
     if (!token) {
         throw new Error("GITHUB_TOKEN not set");
     }
     const octokit = github.getOctokit(token);
     const { owner, repo } = github.context.repo;
     const pull_number = github.context.payload.pull_request?.number ?? 0;
-    const response = await octokit.rest.pulls.listFiles({
+    // Use the GET pull request endpoint to retrieve the diff content
+    const response = await octokit.rest.pulls.get({
         owner,
         repo,
         pull_number,
-        per_page: 100,
+        mediaType: { format: "diff" },
     });
-    const file = response.data.find(f => f.filename === path);
-    return file?.patch ?? "";
+    // The API returns the diff as a raw string
+    return typeof response.data === "string" ? response.data : "";
 }
 
 
