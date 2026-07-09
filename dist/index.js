@@ -37747,13 +37747,21 @@ async function run() {
         const changedFiles = await (0, diffAnalyzer_1.getChangedFilesWithPatch)();
         (0, logger_1.logInfo)(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
         const comments = [];
+        // Process each file's diff in 50-line chunks to avoid large payloads
         for (const { filename, patch } of changedFiles) {
             if (!patch) {
                 (0, logger_1.logWarning)(`No diff found for ${filename}`);
                 continue;
             }
-            const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
-            comments.push(...fileComments);
+            // Split the patch into chunks of 50 lines
+            const lines = patch.split('\n');
+            const chunkSize = 50;
+            for (let i = 0; i < lines.length; i += chunkSize) {
+                const chunkLines = lines.slice(i, i + chunkSize);
+                const chunk = chunkLines.join('\n');
+                const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, chunk, filename);
+                comments.push(...fileComments);
+            }
         }
         const { owner, repo } = github.context.repo;
         const pull_number = github.context.payload.pull_request?.number;

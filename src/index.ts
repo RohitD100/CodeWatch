@@ -17,13 +17,21 @@ async function run() {
     logInfo(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
     const comments: ReviewComment[] = [];
 
+    // Process each file's diff in 50-line chunks to avoid large payloads
     for (const { filename, patch } of changedFiles) {
       if (!patch) {
         logWarning(`No diff found for ${filename}`);
         continue;
       }
-      const fileComments = await generateReviewComments(provider, patch, filename);
-      comments.push(...fileComments);
+      // Split the patch into chunks of 50 lines
+      const lines = patch.split('\n');
+      const chunkSize = 50;
+      for (let i = 0; i < lines.length; i += chunkSize) {
+        const chunkLines = lines.slice(i, i + chunkSize);
+        const chunk = chunkLines.join('\n');
+        const fileComments = await generateReviewComments(provider, chunk, filename);
+        comments.push(...fileComments);
+      }
     }
 
     const { owner, repo } = github.context.repo;
