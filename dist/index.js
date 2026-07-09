@@ -37756,11 +37756,13 @@ async function run() {
                 (0, logger_1.logWarning)(`No diff found for ${filename}`);
                 continue;
             }
+            (0, logger_1.logInfo)(`processing file ------> ${filename}`);
             // Request a concise review comment for the full diff
             const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
             if (fileComments.length > 0) {
                 const first = fileComments[0];
                 const shortBody = first.body.length > 200 ? first.body.slice(0, 197) + '...' : first.body;
+                (0, logger_1.logInfo)(`shortBody -----> ${shortBody}`);
                 await octokit.rest.pulls.createReviewComment({
                     owner,
                     repo,
@@ -37988,11 +37990,13 @@ const logger_1 = __nccwpck_require__(6999);
 async function generateReviewComments(provider, diff, filePath) {
     const prompt = `You are an expert code reviewer. Analyze the following diff for ${filePath} and identify any bugs, security vulnerabilities, performance problems, code smells, or best‑practice violations. Respond with a JSON array of objects with fields: path, line (the line number in the new file), and body (the review comment). Only return the JSON array, nothing else.\n\n${diff}`;
     try {
+        (0, logger_1.logInfo)(`prompt ----------------> ${prompt}`);
         const response = await provider.sendPrompt(prompt);
         // Try to parse JSON safely.
         const jsonStart = response.indexOf('[');
         const jsonStr = jsonStart !== -1 ? response.slice(jsonStart) : response;
         const data = JSON.parse(jsonStr);
+        (0, logger_1.logInfo)(`comment data ---------->${data}`);
         return data;
     }
     catch (err) {

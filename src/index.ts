@@ -24,11 +24,13 @@ async function run() {
         logWarning(`No diff found for ${filename}`);
         continue;
       }
+      logInfo(`processing file ------> ${filename}`)
       // Request a concise review comment for the full diff
       const fileComments = await generateReviewComments(provider, patch, filename);
       if (fileComments.length > 0) {
         const first = fileComments[0];
         const shortBody = first.body.length > 200 ? first.body.slice(0, 197) + '...' : first.body;
+        logInfo(`shortBody -----> ${shortBody}`)
         await octokit.rest.pulls.createReviewComment({
           owner,
           repo,
