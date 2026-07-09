@@ -37742,42 +37742,40 @@ async function run() {
         const token = core.getInput("github_token");
         if (!token)
             throw new Error('GITHUB_TOKEN not set');
+        (0, logger_1.logInfo)(`Github Token ------> ${token}`);
         const octokit = github.getOctokit(token);
         const provider = (0, llmClient_1.createLLMProvider)();
         const changedFiles = await (0, diffAnalyzer_1.getChangedFilesWithPatch)();
         (0, logger_1.logInfo)(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
-        const comments = [];
-        // Process each file's diff in 50-line chunks to avoid large payloads
+        // Process each file and post a single short comment directly
+        const { owner, repo } = github.context.repo;
+        const pull_number = github.context.payload.pull_request?.number;
+        let postedCount = 0;
         for (const { filename, patch } of changedFiles) {
             if (!patch) {
                 (0, logger_1.logWarning)(`No diff found for ${filename}`);
                 continue;
             }
-            // Split the patch into chunks of 50 lines
-            const lines = patch.split('\n');
-            const chunkSize = 50;
-            for (let i = 0; i < lines.length; i += chunkSize) {
-                const chunkLines = lines.slice(i, i + chunkSize);
-                const chunk = chunkLines.join('\n');
-                const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, chunk, filename);
-                comments.push(...fileComments);
+            // Request a concise review comment for the full diff
+            const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
+            if (fileComments.length > 0) {
+                const first = fileComments[0];
+                const shortBody = first.body.length > 200 ? first.body.slice(0, 197) + '...' : first.body;
+                await octokit.rest.pulls.createReviewComment({
+                    owner,
+                    repo,
+                    pull_number,
+                    body: shortBody,
+                    commit_id: github.context.payload.pull_request?.head.sha,
+                    path: first.path,
+                    line: first.line,
+                });
+                postedCount++;
+                (0, logger_1.logInfo)(`Posted short comment for ${filename}`);
             }
         }
-        const { owner, repo } = github.context.repo;
-        const pull_number = github.context.payload.pull_request?.number;
-        for (const comment of comments) {
-            await octokit.rest.pulls.createReviewComment({
-                owner,
-                repo,
-                pull_number,
-                body: comment.body,
-                commit_id: github.context.payload.pull_request?.head.sha,
-                path: comment.path,
-                line: comment.line
-            });
-        }
-        core.setOutput('review-comments', comments.length);
-        (0, logger_1.logInfo)(`Posted ${comments.length} review comments`);
+        core.setOutput('review-comments', postedCount);
+        (0, logger_1.logInfo)(`Posted ${postedCount} review comments`);
     }
     catch (error) {
         const err = error;
