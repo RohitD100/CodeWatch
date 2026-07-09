@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { createLLMProvider } from './llmClient';
-import { getChangedFiles, getChangedFilesWithPatch, getFileDiff } from './diffAnalyzer';
+import {  getChangedFilesWithPatch } from './diffAnalyzer';
 import { generateReviewComments } from './reviewGenerator';
 import { logInfo, logError, logWarning } from './logger';
 import { ReviewComment } from './types';

@@ -37628,6 +37628,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getChangedFiles = getChangedFiles;
+exports.getChangedFilesWithPatch = getChangedFilesWithPatch;
 exports.getFileDiff = getFileDiff;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
@@ -37648,6 +37649,25 @@ async function getChangedFiles() {
         per_page: 100,
     });
     return resp.data.map((f) => f.filename);
+}
+// New helper to get filenames with their patches
+async function getChangedFilesWithPatch() {
+    const context = github.context;
+    const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
+    if (!token)
+        throw new Error('GITHUB_TOKEN not set');
+    const octokit = github.getOctokit(token);
+    const { owner, repo } = context.repo;
+    const pull_number = context.payload.pull_request?.number;
+    if (!pull_number)
+        throw new Error('Not a pull request event');
+    const resp = await octokit.rest.pulls.listFiles({
+        owner,
+        repo,
+        pull_number,
+        per_page: 100,
+    });
+    return resp.data.map((f) => ({ filename: f.filename, patch: f.patch }));
 }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getFileDiff(path) {
@@ -37724,16 +37744,15 @@ async function run() {
             throw new Error('GITHUB_TOKEN not set');
         const octokit = github.getOctokit(token);
         const provider = (0, llmClient_1.createLLMProvider)();
-        const files = await (0, diffAnalyzer_1.getChangedFiles)();
-        (0, logger_1.logInfo)(`Changed files: ${files.join(', ')}`);
+        const changedFiles = await (0, diffAnalyzer_1.getChangedFilesWithPatch)();
+        (0, logger_1.logInfo)(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
         const comments = [];
-        for (const file of files) {
-            const diff = await (0, diffAnalyzer_1.getFileDiff)(file);
-            if (!diff) {
-                (0, logger_1.logWarning)(`No diff found for ${file}`);
+        for (const { filename, patch } of changedFiles) {
+            if (!patch) {
+                (0, logger_1.logWarning)(`No diff found for ${filename}`);
                 continue;
             }
-            const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, diff, file);
+            const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
             comments.push(...fileComments);
         }
         const { owner, repo } = github.context.repo;
@@ -37854,6 +37873,7 @@ class NvidiaProvider {
         try {
             const resp = await axios_1.default.post(`${this.baseURL}/chat/completions`, payload, {
                 headers: { Authorization: `Bearer ${this.apiKey}` },
+                timeout: 300000, // 5 minutes
             });
             return resp.data.choices?.[0]?.message?.content ?? '';
         }
