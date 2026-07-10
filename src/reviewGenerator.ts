@@ -3,7 +3,7 @@ import { logError, logInfo } from './logger';
 import { ReviewComment } from './types';
 
 export async function generateReviewComments(provider: LLMProvider, diff: string, filePath: string): Promise<ReviewComment[]> {
-  const prompt = `You are an expert code reviewer. Analyze the following diff for ${filePath} and identify any bugs, security vulnerabilities, performance problems, code smells, or best‑practice violations. Respond with a JSON array of objects with fields: path, line (the line number in the new file), and body (the review comment). Only return the JSON array, nothing else.\n\n${diff}`;
+  const prompt = `You are an expert code reviewer. Analyze the following diff for ${filePath} and identify any bugs, security vulnerabilities, performance problems, code smells, or best‑practice violations. Respond with **no more than 5** review comments. Return a JSON array of objects with fields: path, line (the line number in the new file), and body (the review comment). Only return the JSON array, nothing else.\n\n${diff}`;
   try {
     logInfo(`prompt ----------------> ${prompt}`)
     const response = await provider.sendPrompt(prompt);

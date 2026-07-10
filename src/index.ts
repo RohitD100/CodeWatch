@@ -19,7 +19,7 @@ async function run() {
     const provider = createLLMProvider();
 
     const changedFiles = await getChangedFilesWithPatch();
-    logInfo(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
+    logInfo(`Changed files: ${changedFiles.map((f) => f.filename).join(', ')}`);
 
     const { owner, repo } = github.context.repo;
     const pull_number = github.context.payload.pull_request?.number as number;
@@ -42,38 +42,48 @@ async function run() {
       try {
         // Skip overly large diffs that may cause provider time‑outs (e.g., >5KB)
         if (patch.length > 5_000) {
-          logWarning(`Diff for ${filename} is too large (${patch.length} chars); skipping review generation`);
+          logWarning(
+            `Diff for ${filename} is too large (${patch.length} chars); skipping review generation`,
+          );
         } else {
-          fileComments = await generateReviewComments(provider, patch, filename);
+          fileComments = await generateReviewComments(
+            provider,
+            patch,
+            filename,
+          );
+          if (fileComments.length > 0) {
+            // Truncate each comment body to keep token usage low and respect GitHub limits
+            for (const c of fileComments) {
+              const truncated =
+                c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
+              // Post each comment directly with error handling
+              try {
+                await octokit.rest.pulls.createReviewComment({
+                  owner,
+                  repo,
+                  pull_number,
+                  body: truncated,
+                  commit_id: headSha,
+                  path: c.path,
+                  line: c.line,
+                });
+                postedCount++;
+                logInfo(`Posted comment for ${c.path}:${c.line}`);
+              } catch (postErr) {
+                const msg =
+                  postErr instanceof Error ? postErr.message : String(postErr);
+                logError(
+                  `Failed to post comment for ${c.path}:${c.line}: ${msg}`,
+                );
+                // Continue with next comment
+              }
+            }
+          }
         }
       } catch (genErr) {
         const msg = genErr instanceof Error ? genErr.message : String(genErr);
         logError(`Failed to generate review comments for ${filename}: ${msg}`);
         // Continue without posting for this file
-      }
-      if (fileComments.length > 0) {
-        // Truncate each comment body to keep token usage low and respect GitHub limits
-        for (const c of fileComments) {
-          const truncated = c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
-          // Post each comment directly with error handling
-          try {
-            await octokit.rest.pulls.createReviewComment({
-              owner,
-              repo,
-              pull_number,
-              body: truncated,
-              commit_id: headSha,
-              path: c.path,
-              line: c.line,
-            });
-            postedCount++;
-            logInfo(`Posted comment for ${c.path}:${c.line}`);
-          } catch (postErr) {
-            const msg = postErr instanceof Error ? postErr.message : String(postErr);
-            logError(`Failed to post comment for ${c.path}:${c.line}: ${msg}`);
-            // Continue with next comment
-          }
-        }
       }
     }
 
