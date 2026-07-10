@@ -37750,44 +37750,65 @@ async function run() {
         const octokit = github.getOctokit(token);
         const provider = (0, llmClient_1.createLLMProvider)();
         const changedFiles = await (0, diffAnalyzer_1.getChangedFilesWithPatch)();
-        (0, logger_1.logInfo)(`Changed files: ${changedFiles.map(f => f.filename).join(', ')}`);
+        (0, logger_1.logInfo)(`Changed files: ${changedFiles.map((f) => f.filename).join(', ')}`);
         const { owner, repo } = github.context.repo;
         const pull_number = github.context.payload.pull_request?.number;
         const headSha = github.context.payload.pull_request?.head.sha;
-        const allComments = [];
+        let postedCount = 0;
         for (const { filename, patch } of changedFiles) {
+            // Skip configuration files that should not receive review comments
+            if (filename === 'package.json' || filename === 'package-lock.json') {
+                (0, logger_1.logInfo)(`Skipping ${filename}`);
+                continue;
+            }
             if (!patch) {
                 (0, logger_1.logWarning)(`No diff found for ${filename}`);
                 continue;
             }
             (0, logger_1.logInfo)(`processing file ------> ${filename}`);
-            // Generate AI review comments for the diff
-            const fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
-            if (fileComments.length > 0) {
-                // Truncate each comment body to keep token usage low and respect GitHub limits
-                for (const c of fileComments) {
-                    const truncated = c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
-                    allComments.push({ ...c, body: truncated });
+            // Generate AI review comments for the diff, with safety checks
+            let fileComments = [];
+            try {
+                // Skip overly large diffs that may cause provider time‑outs (e.g., >5KB)
+                if (patch.length > 5000) {
+                    (0, logger_1.logWarning)(`Diff for ${filename} is too large (${patch.length} chars); skipping review generation`);
+                }
+                else {
+                    fileComments = await (0, reviewGenerator_1.generateReviewComments)(provider, patch, filename);
+                    if (fileComments.length > 0) {
+                        // Truncate each comment body to keep token usage low and respect GitHub limits
+                        for (const c of fileComments) {
+                            const truncated = c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
+                            // Post each comment directly with error handling
+                            try {
+                                await octokit.rest.pulls.createReviewComment({
+                                    owner,
+                                    repo,
+                                    pull_number,
+                                    body: truncated,
+                                    commit_id: headSha,
+                                    path: c.path,
+                                    line: c.line,
+                                });
+                                postedCount++;
+                                (0, logger_1.logInfo)(`Posted comment for ${c.path}:${c.line}`);
+                            }
+                            catch (postErr) {
+                                const msg = postErr instanceof Error ? postErr.message : String(postErr);
+                                (0, logger_1.logError)(`Failed to post comment for ${c.path}:${c.line}: ${msg}`);
+                                // Continue with next comment
+                            }
+                        }
+                    }
                 }
             }
+            catch (genErr) {
+                const msg = genErr instanceof Error ? genErr.message : String(genErr);
+                (0, logger_1.logError)(`Failed to generate review comments for ${filename}: ${msg}`);
+                // Continue without posting for this file
+            }
         }
-        // Batch posting: GitHub allows up to 40 comments per review request.
-        const MAX_PER_BATCH = 40;
-        let postedCount = 0;
-        for (let i = 0; i < allComments.length; i += MAX_PER_BATCH) {
-            const batch = allComments.slice(i, i + MAX_PER_BATCH);
-            await octokit.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number,
-                event: 'COMMENT',
-                body: 'Automated AI review',
-                commit_id: headSha,
-                comments: batch.map(c => ({ path: c.path, line: c.line, body: c.body })),
-            });
-            postedCount += batch.length;
-            (0, logger_1.logInfo)(`Posted batch of ${batch.length} comments`);
-        }
+        // No further batching needed; postedCount reflects total comments posted
         core.setOutput('review-comments', postedCount);
         (0, logger_1.logInfo)(`Posted total ${postedCount} review comments`);
     }
@@ -37996,7 +38017,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.generateReviewComments = generateReviewComments;
 const logger_1 = __nccwpck_require__(6999);
 async function generateReviewComments(provider, diff, filePath) {
-    const prompt = `You are an expert code reviewer. Analyze the following diff for ${filePath} and identify any bugs, security vulnerabilities, performance problems, code smells, or best‑practice violations. Respond with a JSON array of objects with fields: path, line (the line number in the new file), and body (the review comment). Only return the JSON array, nothing else.\n\n${diff}`;
+    const prompt = `You are an expert code reviewer. Analyze the following diff for ${filePath} and identify any bugs, security vulnerabilities, performance problems, code smells, or best‑practice violations. Respond with **no more than 5** review comments. Return a JSON array of objects with fields: path, line (the line number in the new file), and body (the review comment). Only return the JSON array, nothing else.\n\n${diff}`;
     try {
         (0, logger_1.logInfo)(`prompt ----------------> ${prompt}`);
         const response = await provider.sendPrompt(prompt);
