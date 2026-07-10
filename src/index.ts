@@ -4,6 +4,7 @@ import { createLLMProvider } from './llmClient';
 import { getChangedFilesWithPatch } from './diffAnalyzer';
 import { generateReviewComments } from './reviewGenerator';
 import { logInfo, logError, logWarning } from './logger';
+import { ReviewComment } from './types';
 
 /**
  * Runs the action: collects changed files, generates AI review comments, and posts them efficiently.
@@ -36,24 +37,42 @@ async function run() {
         continue;
       }
       logInfo(`processing file ------> ${filename}`);
-      // Generate AI review comments for the diff
-      const fileComments = await generateReviewComments(provider, patch, filename);
+      // Generate AI review comments for the diff, with safety checks
+      let fileComments: ReviewComment[] = [];
+      try {
+        // Skip overly large diffs that may cause provider time‑outs (e.g., >5KB)
+        if (patch.length > 5_000) {
+          logWarning(`Diff for ${filename} is too large (${patch.length} chars); skipping review generation`);
+        } else {
+          fileComments = await generateReviewComments(provider, patch, filename);
+        }
+      } catch (genErr) {
+        const msg = genErr instanceof Error ? genErr.message : String(genErr);
+        logError(`Failed to generate review comments for ${filename}: ${msg}`);
+        // Continue without posting for this file
+      }
       if (fileComments.length > 0) {
         // Truncate each comment body to keep token usage low and respect GitHub limits
         for (const c of fileComments) {
           const truncated = c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
-          // Post each comment directly
-          await octokit.rest.pulls.createReviewComment({
-            owner,
-            repo,
-            pull_number,
-            body: truncated,
-            commit_id: headSha,
-            path: c.path,
-            line: c.line,
-          });
-          postedCount++;
-          logInfo(`Posted comment for ${c.path}:${c.line}`);
+          // Post each comment directly with error handling
+          try {
+            await octokit.rest.pulls.createReviewComment({
+              owner,
+              repo,
+              pull_number,
+              body: truncated,
+              commit_id: headSha,
+              path: c.path,
+              line: c.line,
+            });
+            postedCount++;
+            logInfo(`Posted comment for ${c.path}:${c.line}`);
+          } catch (postErr) {
+            const msg = postErr instanceof Error ? postErr.message : String(postErr);
+            logError(`Failed to post comment for ${c.path}:${c.line}: ${msg}`);
+            // Continue with next comment
+          }
         }
       }
     }
