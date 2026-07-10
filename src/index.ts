@@ -4,7 +4,6 @@ import { createLLMProvider } from './llmClient';
 import { getChangedFilesWithPatch } from './diffAnalyzer';
 import { generateReviewComments } from './reviewGenerator';
 import { logInfo, logError, logWarning } from './logger';
-import { ReviewComment } from './types';
 
 /**
  * Runs the action: collects changed files, generates AI review comments, and posts them efficiently.
@@ -24,9 +23,14 @@ async function run() {
     const { owner, repo } = github.context.repo;
     const pull_number = github.context.payload.pull_request?.number as number;
     const headSha = github.context.payload.pull_request?.head.sha;
+    let postedCount = 0;
 
-    const allComments: ReviewComment[] = [];
     for (const { filename, patch } of changedFiles) {
+      // Skip configuration files that should not receive review comments
+      if (filename === 'package.json' || filename === 'package-lock.json') {
+        logInfo(`Skipping ${filename}`);
+        continue;
+      }
       if (!patch) {
         logWarning(`No diff found for ${filename}`);
         continue;
@@ -38,28 +42,23 @@ async function run() {
         // Truncate each comment body to keep token usage low and respect GitHub limits
         for (const c of fileComments) {
           const truncated = c.body.length > 200 ? c.body.slice(0, 197) + '...' : c.body;
-          allComments.push({ ...c, body: truncated });
+          // Post each comment directly
+          await octokit.rest.pulls.createReviewComment({
+            owner,
+            repo,
+            pull_number,
+            body: truncated,
+            commit_id: headSha,
+            path: c.path,
+            line: c.line,
+          });
+          postedCount++;
+          logInfo(`Posted comment for ${c.path}:${c.line}`);
         }
       }
     }
 
-    // Batch posting: GitHub allows up to 40 comments per review request.
-    const MAX_PER_BATCH = 40;
-    let postedCount = 0;
-    for (let i = 0; i < allComments.length; i += MAX_PER_BATCH) {
-      const batch = allComments.slice(i, i + MAX_PER_BATCH);
-      await octokit.rest.pulls.createReview({
-        owner,
-        repo,
-        pull_number,
-        event: 'COMMENT',
-        body: 'Automated AI review',
-        commit_id: headSha,
-        comments: batch.map(c => ({ path: c.path, line: c.line, body: c.body })),
-      });
-      postedCount += batch.length;
-      logInfo(`Posted batch of ${batch.length} comments`);
-    }
+    // No further batching needed; postedCount reflects total comments posted
 
     core.setOutput('review-comments', postedCount);
     logInfo(`Posted total ${postedCount} review comments`);
