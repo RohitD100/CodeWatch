@@ -1,7 +1,9 @@
 import * as core from '@actions/core';
-import axios from 'axios';
 import { LLMProvider } from './types';
 import { logError } from './logger';
+import OpenAI from 'openai';
+
+import axios from 'axios';
 
 class OpenAIProvider implements LLMProvider {
   name = 'openai';
@@ -20,13 +22,9 @@ class OpenAIProvider implements LLMProvider {
       temperature: 0.2,
     };
     try {
-      const resp = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        payload,
-        {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-        },
-      );
+      const resp = await axios.post('https://api.openai.com/v1/chat/completions', payload, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
       return resp.data.choices?.[0]?.message?.content ?? '';
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -36,37 +34,28 @@ class OpenAIProvider implements LLMProvider {
   }
 }
 
-// NVIDIA provider using integrate API
+// NVIDIA provider using OpenAI SDK with NVIDIA endpoint
 class NvidiaProvider implements LLMProvider {
   name = 'nvidia';
-  private apiKey: string;
+  private client: OpenAI;
   private model: string;
-  private baseURL = 'https://integrate.api.nvidia.com/v1';
 
   constructor(apiKey: string, model: string = 'meta/llama-3.3-70b-instruct') {
-    this.apiKey = apiKey;
+    this.client = new OpenAI({ apiKey, baseURL: 'https://integrate.api.nvidia.com/v1' });
     this.model = model;
   }
 
   async sendPrompt(prompt: string, model?: string): Promise<string> {
-    const payload = {
-      model: model ?? this.model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      top_p: 0.7,
-      max_tokens: 1024,
-      stream: false,
-    };
     try {
-      const resp = await axios.post(
-        `${this.baseURL}/chat/completions`,
-        payload,
-        {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-          timeout: 300000, // 5 minutes
-        },
-      );
-      return resp.data.choices?.[0]?.message?.content ?? '';
+      const completion = await this.client.chat.completions.create({
+        model: model ?? this.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+        top_p: 0.7,
+        max_tokens: 1024,
+        stream: false,
+      });
+      return completion.choices?.[0]?.message?.content ?? '';
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logError(`NVIDIA request failed: ${message}`);
