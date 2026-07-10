@@ -17,28 +17,30 @@ Create a workflow file (e.g., `.github/workflows/codewatch.yml`) that runs on `p
 
 ```yaml
 name: CodeWatch Review
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   review:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm ci
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Run CodeWatch
-        uses: ./
+        uses: RohitD100/CodeWatch@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          llm_provider: openai
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          openai_model: gpt-4o
+          llm_provider: "nvidia"
+          nvidia_api_key: ${{ secrets.NVIDIA_API_KEY }}
+          nvidia_model: "openai/gpt-oss-120b"
 ```
 
 ### Inputs
