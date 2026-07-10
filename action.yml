@@ -8,18 +8,17 @@ inputs:
   github_token:
     description: 'GitHub token for API access'
     required: true
-    default: '${{ github.token }}'
   llm_provider:
-    description: 'LLM provider name (openai, anthropic, gemini, azure, openrouter)'
+    description: 'LLM provider name'
     required: true
-    default: 'openai'
-  openai_api_key:
-    description: 'OpenAI API key when using OpenAI provider'
+    default: 'nvidia'
+  nvidia_api_key:
+    description: 'NVIDIA API key'
+    required: true
+  nvidia_model:
+    description: 'NVIDIA model'
     required: false
-  openai_model:
-    description: 'OpenAI model to use'
-    required: false
-    default: 'gpt-4o'
+    default: 'meta/llama-3.3-70b-instruct'
 runs:
-  using: 'node12'
+  using: 'node24'
   main: 'dist/index.js'

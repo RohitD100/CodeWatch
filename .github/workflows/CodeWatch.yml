@@ -1,0 +1,25 @@
+name: CodeWatch Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run CodeWatch
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          llm_provider: nvidia
+          nvidia_api_key: ${{ secrets.NVIDIA_API_KEY }}
+          nvidia_model: meta/llama-3.3-70b-instruct

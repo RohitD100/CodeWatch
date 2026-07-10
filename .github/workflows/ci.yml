@@ -26,9 +26,10 @@ jobs:
         run: npm test
       - name: Build Action
         run: npm run build
-      - name: Verify Action
-        uses: ./
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          llm_provider: openai
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+      # - name: Verify Action
+      #   uses: ./
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     llm_provider: nvidia
+      #     nvidia_api_key: ${{ secrets.NVIDIA_API_KEY }}
+      #     nvidia_model: meta/llama-3.3-70b-instruct

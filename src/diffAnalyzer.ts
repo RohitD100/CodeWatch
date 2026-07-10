@@ -1,25 +1,65 @@
+import * as core from '@actions/core';
 import * as github from '@actions/github';
 
 export async function getChangedFiles(): Promise<string[]> {
   const context = github.context;
-  const token = process.env.GITHUB_TOKEN;
+  const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN not set');
   const octokit = github.getOctokit(token);
   const { owner, repo } = context.repo;
   const pull_number = context.payload.pull_request?.number;
   if (!pull_number) throw new Error('Not a pull request event');
-  const resp = await octokit.rest.pulls.listFiles({ owner, repo, pull_number, per_page: 100 });
-  return resp.data.map(f => f.filename);
+  const resp = await octokit.rest.pulls.listFiles({
+    owner,
+    repo,
+    pull_number,
+    per_page: 100,
+  });
+  return resp.data.map((f) => f.filename);
+}
+
+// New helper to get filenames with their patches
+export async function getChangedFilesWithPatch(): Promise<{filename: string; patch?: string}[]> {
+  const context = github.context;
+  const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
+  if (!token) throw new Error('GITHUB_TOKEN not set');
+  const octokit = github.getOctokit(token);
+  const { owner, repo } = context.repo;
+  const pull_number = context.payload.pull_request?.number;
+  if (!pull_number) throw new Error('Not a pull request event');
+  const resp = await octokit.rest.pulls.listFiles({
+    owner,
+    repo,
+    pull_number,
+    per_page: 100,
+  });
+  return resp.data.map((f) => ({ filename: f.filename, patch: f.patch }));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function getFileDiff(_path: string): Promise<string> {
-  const context = github.context;
-  const token = process.env.GITHUB_TOKEN;
-  const octokit = github.getOctokit(token as string);
-  const { owner, repo } = context.repo;
-  const pull_number = context.payload.pull_request?.number as number;
-  const diffResp = await octokit.rest.pulls.get({ owner, repo, pull_number, mediaType: { format: 'diff' } });
-  // Return the full diff; callers can extract relevant parts if needed.
-  return diffResp.data as unknown as string;
+export async function getFileDiff(path: string): Promise<string> {
+  const token =
+    core.getInput("github_token") || process.env.GITHUB_TOKEN;
+
+  if (!token) {
+    throw new Error("GITHUB_TOKEN not set");
+  }
+
+  const octokit = github.getOctokit(token);
+
+  const { owner, repo } = github.context.repo;
+
+  const pull_number =
+    github.context.payload.pull_request?.number ?? 0;
+
+  // Use the GET pull request endpoint to retrieve the diff content
+  const response = await octokit.rest.pulls.get({
+    owner,
+    repo,
+    pull_number,
+    mediaType: { format: "diff" },
+  });
+
+  // The API returns the diff as a raw string
+  return typeof response.data === "string" ? response.data : "";
 }
