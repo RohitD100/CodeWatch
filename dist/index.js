@@ -37627,29 +37627,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getChangedFiles = getChangedFiles;
 exports.getChangedFilesWithPatch = getChangedFilesWithPatch;
-exports.getFileDiff = getFileDiff;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
-async function getChangedFiles() {
-    const context = github.context;
-    const token = core.getInput('github_token') || process.env.GITHUB_TOKEN;
-    if (!token)
-        throw new Error('GITHUB_TOKEN not set');
-    const octokit = github.getOctokit(token);
-    const { owner, repo } = context.repo;
-    const pull_number = context.payload.pull_request?.number;
-    if (!pull_number)
-        throw new Error('Not a pull request event');
-    const resp = await octokit.rest.pulls.listFiles({
-        owner,
-        repo,
-        pull_number,
-        per_page: 100,
-    });
-    return resp.data.map((f) => f.filename);
-}
 // New helper to get filenames with their patches
 async function getChangedFilesWithPatch() {
     const context = github.context;
@@ -37668,25 +37648,6 @@ async function getChangedFilesWithPatch() {
         per_page: 100,
     });
     return resp.data.map((f) => ({ filename: f.filename, patch: f.patch }));
-}
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getFileDiff(path) {
-    const token = core.getInput("github_token") || process.env.GITHUB_TOKEN;
-    if (!token) {
-        throw new Error("GITHUB_TOKEN not set");
-    }
-    const octokit = github.getOctokit(token);
-    const { owner, repo } = github.context.repo;
-    const pull_number = github.context.payload.pull_request?.number ?? 0;
-    // Use the GET pull request endpoint to retrieve the diff content
-    const response = await octokit.rest.pulls.get({
-        owner,
-        repo,
-        pull_number,
-        mediaType: { format: "diff" },
-    });
-    // The API returns the diff as a raw string
-    return typeof response.data === "string" ? response.data : "";
 }
 
 
